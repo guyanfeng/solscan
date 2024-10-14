@@ -1,0 +1,106 @@
+export interface Config {
+    wallets: string[];
+};
+
+export enum TransactionType{
+    None = 0,
+    Transfer = 1,
+    Dex = 2
+}
+
+export interface DexInstruction {
+    name: string;//交易所名称
+    accountIndex: number;//交易所账号索引
+    instructionIndex: number;//交易所指令索引
+}
+
+// 交易所交易记录
+export interface DexTransaction {
+    wallet: string;
+    dexName: string;
+    // 卖出币种
+    from: string;
+    fromToken: string;
+    fromAmount: number;
+    // 买入币种
+    to: string;
+    toToken: string;
+    toAmount: number;
+    tx: string;
+    time: string;
+    note?: string;
+}
+
+export interface TransferTransaction {
+    // 发送方
+    from: string;
+    // 接收方
+    to: string;
+    // 交易币种
+    token: string;
+    symbol: string;
+    amount: number;
+    tx: string;
+    time: string;
+}
+
+export interface TokenData {
+    mint: string;
+    decimals: number;
+    name: string;
+    symbol: string;
+}
+
+export interface TransactionToken {
+    mint: string;
+    amount: number;
+    name: string;
+}
+
+export interface SplTokenMeta {
+    address: string;
+    name: string;
+    symbol: string;
+    decimal: number;
+    //总供应量
+    supply: number;
+}
+
+export interface MonitorData {
+    wallet: string;
+    tx: string;
+    time: string;
+}
+
+// jupiter v6 api 的结果
+interface SwapResult{
+    success: boolean;
+    errCode: string;
+    tx: string;
+}
+
+interface OrderResult{
+    txid: string;
+    fromAmount: number;
+    price: number;
+    toAmount: number;
+}
+
+interface FollowRecord{
+    updateTime:string,
+    symbol:string,
+    solAmount:number,
+    tokenAmount:number,
+    followWallet:string,
+    tradeType:string
+}
+
+interface HoldRecord{
+    token:string
+    symbol:string,
+    balance:number,
+    wallet:string,
+    followWallet:string
+}
+
+export {OrderResult, FollowRecord, HoldRecord, SwapResult};

@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug TypeScript with ts-node",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "ts-node",
+            "args": ["${file}", "dVs7zZksjFuq73xbtUC62brFXYYuxCuPSG4wZeGiHck"],
+            "sourceMaps": true,
+            "smartStep": true
+        }
+    ]
+}

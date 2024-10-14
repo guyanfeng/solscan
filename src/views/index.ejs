@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOL跟单</title>
+    <link href="/main.css" rel="stylesheet">
+    <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+    <script src="./echarts.min.js"></script>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900">
+    <div class="max-w-screen-lg mx-auto p-4">
+        <h1 class="text-2xl font-bold text-center mb-4 dark:text-gray-50">SOL跟单</h1>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div class="flex flex-col bg-white dark:bg-gray-600 p-4 rounded shadow">
+                <div class="flex justify-between items-center w-full">
+                    <span class="text-lg font-semibold text-gray-900 dark:text-gray-100">总跟单次数</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        <%= totalOrders %>
+                    </span>
+                </div>
+                <hr class="h-px my-4 bg-gray-200 border-0 dark:bg-gray-700">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        买 <span class="text-green-500">
+                            <%= buyOrders %>
+                        </span>
+                        卖 <span class="text-red-500">
+                            <%= sellOrders %>
+                        </span>
+                    </span>
+                </div>
+            </div>
+            
+
+            <div class="flex flex-col bg-white dark:bg-gray-600 p-4 rounded shadow">
+                <div class="flex justify-between items-center w-full">
+                    <span class="text-lg font-semibold text-gray-900 dark:text-gray-100">净持仓SOL</span>
+                    <span class="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                        <%= netPositionSOL %>
+                    </span>
+                </div>
+                <hr class="h-px my-4 bg-gray-200 border-0 dark:bg-gray-700">
+                <div class="flex justify-between items-center">
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        买 <span class="text-green-500">
+                            <%= buySOL %>
+                        </span>
+                        卖 <span class="text-red-500">
+                            <%= sellSOL %>
+                        </span>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2 text-gray-900">SOL净持仓图表</h2>
+            <div id="line-chart" class="h-72"></div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-600 p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">当前持仓</h2>
+            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-200 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th scope="col" class="px-6 py-3">
+                                序号
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                币种
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                余额
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                跟单钱包
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                <span class="sr-only">卖出</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% for (let i=0; i < currentPositions.length; i++) { %>
+                            <tr
+                                class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <th scope="row"
+                                    class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
+                                    <%= i + 1 %>
+                                </th>
+                                <td class="px-6 py-4">
+                                    <%= currentPositions[i].symbol %>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <%= currentPositions[i].balance %>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <%= currentPositions[i].followWallet %>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <a href="/trade/<%= currentPositions[i].id %>"
+                                        class="font-medium text-blue-600 dark:text-blue-500 hover:underline">操作</a>
+                                </td>
+                            </tr>
+                            <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-600 p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">钱包收益排行</h2>
+            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-200 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th scope="col" class="px-6 py-3">
+                                排名
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                钱包
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                收益
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% for (let i=0; i < walletProfits.length; i++) { %>
+                            <tr
+                                class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <th scope="row"
+                                    class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
+                                    <%= i + 1 %>
+                                </th>
+                                <td class="px-6 py-4">
+                                    <%= walletProfits[i].wallet %>
+                                </td>
+                                <td
+                                    class="px-6 py-4 <%= walletProfits[i].profit > 0 ? 'text-green-500' : 'text-red-500' %>">
+                                    <%= walletProfits[i].profit %>
+                                </td>
+                            </tr>
+                            <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-600 p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">币种收益排行</h2>
+            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-200 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th scope="col" class="px-6 py-3">
+                                排名
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                币种
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                收益
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% for (let i=0; i < tokenProfits.length; i++) { %>
+                            <tr
+                                class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <th scope="row"
+                                    class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
+                                    <%= i + 1 %>
+                                </th>
+                                <td class="px-6 py-4">
+                                    <%= tokenProfits[i].symbol %>
+                                </td>
+                                <td
+                                    class="px-6 py-4 <%= tokenProfits[i].profit > 0 ? 'text-green-500' : 'text-red-500' %>">
+                                    <%= tokenProfits[i].profit %>
+                                </td>
+                            </tr>
+                            <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-gray-600 p-4 rounded shadow mb-4">
+            <h2 class="text-lg font-semibold mb-2 text-gray-900 dark:text-gray-100">跟单详情</h2>
+            <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
+                <table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-200 dark:bg-gray-700 dark:text-gray-400">
+                        <tr>
+                            <th scope="col" class="px-6 py-3">
+                                日期
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                币种
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                SOL
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                Token
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                钱包
+                            </th>
+                            <th scope="col" class="px-6 py-3">
+                                类型
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% for (let detail of followDetails) { %>
+                            <tr
+                                class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                <th scope="row"
+                                    class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white">
+                                    <%= detail.updateTime %>
+                                </th>
+                                <td class="px-6 py-4">
+                                    <%= detail.symbol %>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <%= detail.solAmount %>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <%= detail.tokenAmount %>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <%= detail.followWallet %>
+                                </td>
+                                <td class="px-6 py-4 <%= detail.tradeType=='买入' ? 'text-green-500' : 'text-red-500' %>">
+                                    <%= detail.tradeType %>
+                                </td>
+                            </tr>
+                            <% } %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Create the echarts instance
+        var myChart = echarts.init(document.getElementById('line-chart'));
+        option = {
+            grid:{
+                top: '30px',
+                left: '30px',
+                right: '30px',
+                bottom: '30px',
+            },
+            xAxis: {
+                type: 'category',
+                data: [<%- solNetPositionHistory.map(item=>"'" + item.day + "'") %>]
+            },
+            yAxis: {
+                type: 'value',
+                scale: true
+            },
+            tooltip:{
+                trigger: 'axis'
+            },
+            series: [
+                {
+                    data: [<%= solNetPositionHistory.map(item=>item.balance) %>],
+                    type: 'line'
+                }
+            ]
+        };
+        myChart.setOption(option);
+
+    </script>
+</body>
+
+</html>
