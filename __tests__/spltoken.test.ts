@@ -1,6 +1,6 @@
 import { Connection } from '@solana/web3.js';
 import db from '../src/db';
-import { getSplTokenMeta, getSplTokenMetaFromCache } from '../src/spltoken';
+import { getSplTokenMeta, getSplTokenMetaFromCache, getSplTokenBalance } from '../src/spltoken';
 import { randomUUID } from 'crypto';
 import { SplTokenMeta } from '../src/definition';
 
@@ -27,6 +27,12 @@ describe('mtl', () => {
         expect(token.supply).toBeGreaterThan(0);
     });
 
+    it('getTokenBalance', async () => {
+        const wallet = 'narhjFTwcEQ12L9ukMVfnQR51L4PyTAMujkidYADm4r';
+        const mint = '8HfFvgutvKBjdbTqm8h6qZ2VSJ3TxwrZxHT3m34Cpump';
+        const balance = await getSplTokenBalance(connection, wallet, mint);
+    });
+
     it('insertSplTokenMeta', async () => {
         const mint = randomUUID();
         const row:SplTokenMeta = {
@@ -48,6 +54,7 @@ describe('mtl', () => {
         expect(token.symbol).toBe('TEST Token');
         expect(token.supply).toBe(999999999);
     });
+
 });
 
 afterAll(async () => {

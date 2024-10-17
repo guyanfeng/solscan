@@ -7,10 +7,10 @@ const logger = new Logger('followOrder');
 const config = require('../config');
 import { send_tg } from "./notify";
 
-import { jupSwap, getPrice } from "./jupiter";
+import { jupSwap, getPrice, getSignature } from "./jupiter";
 import { getSplTokenMetaFromCache, getTransaction, parseDexTransaction } from "./parse";
-import { clusterApiUrl, Connection } from "@solana/web3.js";
-import { getSplTokenMeta } from "./spltoken";
+import { clusterApiUrl, Connection, PublicKey, VersionedTransactionResponse } from "@solana/web3.js";
+import { getSplTokenBalance, getSplTokenMeta } from "./spltoken";
 
 const flowWallets = config.flowWallets;
 const myWallet: string = config.myWallet;
@@ -23,7 +23,7 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
         if (dexTx.fromToken == config.SOLTOKEN) {
             await db.updateBuyInfo(dexTx.toToken, dexTx.to, dexTx.fromAmount, dexTx.toAmount, '', dexTx.tx, dexTx.wallet, dexTx.time);
         } else if (dexTx.toToken == config.SOLTOKEN) {
-            await db.updateSellInfo(dexTx.fromToken, dexTx.from, dexTx.toAmount, dexTx.fromAmount, dexTx.tx, dexTx.wallet, dexTx.time, '');
+            await db.updateSellInfo(dexTx.fromToken, dexTx.from, dexTx.fromAmount, dexTx.toAmount, dexTx.tx, dexTx.wallet, dexTx.time, '');
         }
     } catch (e) {
         logger.error(`update smartmoney position error: ${e}`);
@@ -142,26 +142,32 @@ async function jupiterBuy(token: string, symbol: string, solAmount: number): Pro
     if (!config.dev) {
         //call api
         //sol 的小数为 9 位
-        for (let i = 0; i < 2; i++) {
-            let swapResult = await jupSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
-            const txid = swapResult.tx;
-            if (!swapResult.success) {
-                logger.error(`jupiter swap failed, tx: ${swapResult.tx}, 重试第 ${i + 1} 次`);
+        for (let i = 0; i < 3; i++) {
+            let tx:VersionedTransactionResponse;
+            try{
+                tx = await jupSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
+            }catch(e){
+                logger.error(`jupiter buy failed, 重试第 ${i + 1} 次`);
                 continue;
             }
-            //等 10 秒钟获取上链信息
-            await new Promise(resolve => setTimeout(resolve, 10000));
-            let tx = await getTransaction(connection, txid);
-            if (!tx) {
-                logger.error(`10 秒后未找到交易: ${txid}, 重试第 ${i + 1} 次`);
-                continue;
-                // await new Promise(resolve => setTimeout(resolve, 60000));
-                // tx = await getTransaction(connection, txid);
-                // if (!tx) {
-                //     logger.error(`60 秒后未找到交易: ${txid}, 重试第 ${i+1} 次`);
-                //     continue;
-                // }
-            }
+            const txid = tx.transaction.signatures[0];
+            // if (!tx.success) {
+            //     logger.error(`jupiter swap failed, tx: ${tx.tx}, 重试第 ${i + 1} 次`);
+            //     continue;
+            // }
+            // //等 10 秒钟获取上链信息
+            // await new Promise(resolve => setTimeout(resolve, 10000));
+            // let tx = await getTransaction(connection, txid);
+            // if (!tx) {
+            //     logger.error(`10 秒后未找到交易: ${txid}, 重试第 ${i + 1} 次`);
+            //     continue;
+            //     // await new Promise(resolve => setTimeout(resolve, 60000));
+            //     // tx = await getTransaction(connection, txid);
+            //     // if (!tx) {
+            //     //     logger.error(`60 秒后未找到交易: ${txid}, 重试第 ${i+1} 次`);
+            //     //     continue;
+            //     // }
+            // }
             const dexTx = await parseDexTransaction(connection, tx, 'Jupiter V6');
             if (!dexTx) {
                 throw new Error(`Dex transaction not found: ${txid}`);
@@ -207,6 +213,16 @@ async function sell(token: string, symbol: string, smWallet: string, smAmount: n
 
     //计算卖出数量
     const sellAmount = position.balance * sellPercent;
+    if (sellPercent == 1) {
+        // 如果数量为 100%，则重新从链上获取最新余额，因为余额在数据库中不一定精确
+        const balance = await getSplTokenBalance(connection, myWallet, token);
+        if (balance == 0){
+            logger.info(`余额为 0, 无法卖出`);
+            throw new Error(`余额为 0, 无法卖出`);
+        }
+        db.updateBalanceByToken(myWallet, token, balance);
+        logger.info(`将卖出数量从 ${sellAmount} 修正为 ${balance}`);
+    }
 
     logger.info(`目前持仓 ${position.balance}, 卖出比例 ${sellPercent}, 卖出 ${sellAmount}`);
 
@@ -257,30 +273,36 @@ async function jupiterSell(token: string, symbol: string, tokenAmount: number): 
     //调用 jupiter 的 api 进行买入
     if (!config.dev) {
         //call api
-        for (let i = 0; i < 2; i++) {
-            let swapResult = await jupSwap(token, config.SOLTOKEN, tokenAmount.toString(), i);
-            const txid = swapResult.tx;
-            if (!swapResult.success) {
-                if (swapResult.errCode == '40') { //余额不足，直接返回
-                    throw new Error(`jupiter sell failed, 余额不足`);
-                }
-                logger.error(`jupiter swap failed, tx: ${swapResult.tx}, 重试第 ${i + 1} 次`);
+        for (let i = 0; i < 3; i++) {
+            let tx:VersionedTransactionResponse;
+            try{
+                tx = await jupSwap(token, config.SOLTOKEN, tokenAmount.toString(), i);
+            }catch(e){
+                logger.error(`jupiter sell failed, 重试第 ${i + 1} 次`);
                 continue;
             }
+            const txid = tx.transaction.signatures[0];
+            // if (!swapResult.success) {
+            //     if (swapResult.errCode == '40') { //余额不足，直接返回
+            //         throw new Error(`jupiter sell failed, 余额不足`);
+            //     }
+            //     logger.error(`jupiter swap failed, tx: ${swapResult.tx}, 重试第 ${i + 1} 次`);
+            //     continue;
+            // }
 
-            //等 10 秒钟再获取上链信息
-            await new Promise(resolve => setTimeout(resolve, 10000));
-            let tx = await getTransaction(connection, txid);
-            if (!tx) {
-                logger.error(`10 秒后未找到交易: ${txid}, 重试第 ${i + 1} 次`);
-                continue;
-                // await new Promise(resolve => setTimeout(resolve, 60000));
-                // tx = await getTransaction(connection, txid);
-                // if (!tx) {
-                //     logger.error(`60 秒后未找到交易: ${txid}, 重试第 ${i+1} 次`);
-                //     continue;
-                // }
-            }
+            // //等 10 秒钟再获取上链信息
+            // await new Promise(resolve => setTimeout(resolve, 10000));
+            // let tx = await getTransaction(connection, txid);
+            // if (!tx) {
+            //     logger.error(`10 秒后未找到交易: ${txid}, 重试第 ${i + 1} 次`);
+            //     continue;
+            //     // await new Promise(resolve => setTimeout(resolve, 60000));
+            //     // tx = await getTransaction(connection, txid);
+            //     // if (!tx) {
+            //     //     logger.error(`60 秒后未找到交易: ${txid}, 重试第 ${i+1} 次`);
+            //     //     continue;
+            //     // }
+            // }
             const dexTx = await parseDexTransaction(connection, tx, 'Jupiter V6');
             if (!dexTx) {
                 throw new Error(`Dex transaction not found: ${txid}`);

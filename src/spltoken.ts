@@ -32,4 +32,17 @@ async function getSplTokenMeta(mint: string): Promise<SplToken> {
     }
 }
 
-export { getSplTokenMeta, getSplTokenMetaFromCache};
+async function getSplTokenBalance(connection: Connection, publicKey: string, mintAddress: string): Promise<number> {
+    const accounts = await connection.getTokenAccountsByOwner(new PublicKey(publicKey), {
+        mint: new PublicKey(mintAddress)
+    });
+
+    // 遍历并查询每个账户的余额
+    for (let accountInfo of accounts.value) {
+        const tokenBalance = await connection.getTokenAccountBalance(accountInfo.pubkey);
+        return tokenBalance.value.uiAmount || 0;
+    }
+    return 0;
+}
+
+export { getSplTokenMeta, getSplTokenMetaFromCache, getSplTokenBalance};

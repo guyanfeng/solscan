@@ -15,21 +15,38 @@ class Logger {
     }
   }
 
-  private log(logName:string, level: LogLevel, message: string): void {
+  private formatMessage(msg:any): string {
+    if (!msg){
+      return '';
+    }
+    if (typeof msg === 'string') {
+      return msg;
+    }
+    if (msg instanceof Error) {
+      return msg.stack || msg.message;
+    }
+    if (typeof msg === 'object') {
+        return JSON.stringify(msg, null, 2);
+    }
+    return String(msg);
+  }
+
+  private log(logName:string, level: LogLevel, ...message: any[]): void {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] [${logName}] [${level}] ${message}`);
+    const formattedArgs = message.map(arg => this.formatMessage(arg));
+    console.log(timestamp,logName,level, ...formattedArgs);
   }
 
-  public info(message: string): void {
-    this.log(this.name, this.levels.INFO, message);
+  public info(...message: any[]): void {
+    this.log(this.name, this.levels.INFO, ...message);
   }
 
-  public debug(message: string): void {
-    this.log(this.name, this.levels.DEBUG, message);
+  public debug(...message: any[]): void {
+    this.log(this.name, this.levels.DEBUG, ...message);
   }
 
-  public error(message: string): void {
-    this.log(this.name, this.levels.ERROR, message);
+  public error(...message: any[]): void {
+    this.log(this.name, this.levels.ERROR, ...message);
   }
 }
 

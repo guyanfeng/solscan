@@ -302,6 +302,10 @@ order by updateTime desc limit 24`, [config.myWallet, config.myWallet]);
         await this.db('position').where('id', id).update({balance:balance});
     }
 
+    public async updateBalanceByToken(wallet:string, token:string, balance:number): Promise<void> {
+        await this.db('position').where('wallet', wallet).andWhere('token', token).update({balance:balance});
+    }
+
     public async deletePosition(id:number):Promise<void>{
         await this.db('position').where('id', id).delete();
     }

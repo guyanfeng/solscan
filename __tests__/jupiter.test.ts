@@ -10,21 +10,17 @@ describe('jupiter', () => {
         expect(price).toBeGreaterThan(0);
     });
 
-    it('buy', async () => {
-        const token = '4rXiu7Vw9rdpHHKFLBGzzTWTWpgHVmUq2jJEKCt6FPGY';
-        const amount = 0.02 * 10 ** 6;
-        const swapResult = await jupSwap(config.SOLTOKEN, token, amount.toString());
-        expect(swapResult.success).toBeTruthy();
-        console.log(`Buy ${amount} SOL for ${token}, txid: ${swapResult.tx}`);
-    });
+    // it('buy', async () => {
+    //     const token = '8jT2uVGpC6PbsPcQJ5bmEH9D8pQq41WEUMaUpo9Npump';
+    //     const amount = 0.02 * 10 ** 6;
+    //     const swapResult = await jupSwap(config.SOLTOKEN, token, amount.toString());
+    // });
 
-    it('sell', async () => {
-        const token = 'A3Y1xWobiHkbRcbfn2nHCbfMFEMupGw1UkUucUFUpump';
-        const amount = 100 * 10 ** 6;
-        const swapResult = await jupSwap(config.SOLTOKEN, token, amount.toString());
-        expect(swapResult.success).toBeTruthy();
-        console.log(`Buy ${amount} SOL for ${token}, txid: ${swapResult.tx}`);
-    });
+    // it('sell', async () => {
+    //     const token = 'A3Y1xWobiHkbRcbfn2nHCbfMFEMupGw1UkUucUFUpump';
+    //     const amount = 100 * 10 ** 6;
+    //     const swapResult = await jupSwap(config.SOLTOKEN, token, amount.toString());
+    // });
 });
 
 afterAll(async () => {

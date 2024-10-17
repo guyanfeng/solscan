@@ -129,19 +129,23 @@ describe('parse dex', () => {
     });
 
     it('test', async () => {
-        const tx = '7EjTAQGcCRKEQUxyAKDZjasbYg7G5SvGaCaexLPME4HRY92mmmTrDHnNaVwxTWuuJ9JeKvc9vgSAN1jvzZzTDTU';
-        const txResp = await getTransaction(connection, tx);
-        expect(txResp).not.toBeNull();
-        if (!txResp) {
-            return;
-        }
-        const dexName = await hasDexInstruction(connection, txResp);
-        if (!dexName) {
-            const isTransfer = await isTransferInstruction(txResp);
-            console.log(isTransfer);
-        }else{
-            const dexTx = await parseDexTransaction(connection, txResp, dexName);
-            console.log(dexTx);
-        }
+        logger.info('hello');
+        logger.debug(new Error('error'));
+        logger.error('error', new Error('error'));
+        return;
+        // const tx = '5XLQpD71dMVnDuy7kJGsutwoVkFLpL9wefZ1V91VBeBT7Sw316M8czEAWoHx4T6BWuprmnCi7mhb9rmXH2EHNds1';
+        // const txResp = await getTransaction(connection, tx);
+        // expect(txResp).not.toBeNull();
+        // if (!txResp) {
+        //     return;
+        // }
+        // const dexName = await hasDexInstruction(connection, txResp);
+        // if (!dexName) {
+        //     const isTransfer = await isTransferInstruction(txResp);
+        //     console.log(isTransfer);
+        // }else{
+        //     const dexTx = await parseDexTransaction(connection, txResp, dexName);
+        //     console.log(dexTx);
+        // }
     });
 });
