@@ -14,7 +14,7 @@ const connection: Connection = new Connection('https://api.mainnet-beta.solana.c
 
 async function increaseBuy(token:string, followWallet:string){
     const tokenInfo = await getSplTokenMetaFromCache(connection, token);
-    const buyResult = await buy(token, tokenInfo.symbol, 1, followWallet);
+    const buyResult = await buy(token, tokenInfo.symbol, 1, 1, followWallet);
     console.log(buyResult);
 }
 
@@ -54,16 +54,8 @@ async function increaseSell(token:string, smAmount:number){
         await increaseSell(token, amount);
     } else if (command === 'test')
     {
-        const swapResult = await jupSwap('7bCTaMF64WrhqyDqwri9XMsXsufEKGjUByDLnXGwpump', 'So11111111111111111111111111111111111111112', (2951775.567491 * 1000000).toString(), 2);
-        if (!swapResult.success){
-            console.log('Swap failed');
-            return;
-        }
-        const txid = swapResult.tx;
-        // const txid = await jupSwap('So11111111111111111111111111111111111111112', '7bCTaMF64WrhqyDqwri9XMsXsufEKGjUByDLnXGwpump', (0.1 * 1000000000).toString(), 2);
-        logger.debug(`tx: ${txid}`);
-        const connection = new Connection(config.tradeRpc);
-        const tx = await getTransaction(connection, txid);
+        const tx = await jupSwap('7bCTaMF64WrhqyDqwri9XMsXsufEKGjUByDLnXGwpump', 'So11111111111111111111111111111111111111112', (2951775.567491 * 1000000).toString(), 2);
+        const txid = tx.transaction.signatures[0];
         if (!tx){
             logger.error(`Transaction ${txid} not found`);
             return;

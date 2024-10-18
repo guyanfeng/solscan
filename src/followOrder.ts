@@ -66,7 +66,7 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
             return;
         }
         try {
-            const result = await buy(dexTx.toToken, dexTx.to, dexTx.toAmount, dexTx.wallet);
+            const result = await buy(dexTx.toToken, dexTx.to, dexTx.fromAmount, dexTx.toAmount, dexTx.wallet);
             await send_tg(`跟单 ${dexTx.wallet} 买入了 ${result.toAmount} 的 ${dexTx.to}[${dexTx.toToken}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
         } catch (e) {
             await send_tg(`跟单 ${dexTx.wallet} 买入${dexTx.to}[${dexTx.toToken}]失败: ${e}`);
@@ -98,10 +98,10 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
  * 买入
  * @param token token mint
  * @param symbol token symbol
- * @param smAmount 为聪明钱购买的token数量，此处作参考
+ * @param smTokenAmount 为聪明钱购买的token数量，此处作参考
  * @param flowAddress 跟单的聪明钱地址
  */
-async function buy(token: string, symbol: string, smAmount: number, flowAddress: string): Promise<OrderResult> {
+async function buy(token: string, symbol: string, smSolAmount:number, smTokenAmount: number, flowAddress: string): Promise<OrderResult> {
 
     const solAmount = 0.1;
     //调用 jupiter 的 api 进行买入
@@ -147,7 +147,7 @@ async function jupiterBuy(token: string, symbol: string, solAmount: number): Pro
             try{
                 tx = await jupSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
             }catch(e){
-                logger.error(`jupiter buy failed, 重试第 ${i + 1} 次`);
+                logger.error(`jupiter buy failed:${e}, 重试第 ${i + 1} 次`);
                 continue;
             }
             const txid = tx.transaction.signatures[0];
@@ -212,7 +212,7 @@ async function sell(token: string, symbol: string, smWallet: string, smAmount: n
     }
 
     //计算卖出数量
-    const sellAmount = position.balance * sellPercent;
+    let sellAmount = position.balance * sellPercent;
     if (sellPercent == 1) {
         // 如果数量为 100%，则重新从链上获取最新余额，因为余额在数据库中不一定精确
         const balance = await getSplTokenBalance(connection, myWallet, token);
@@ -222,6 +222,7 @@ async function sell(token: string, symbol: string, smWallet: string, smAmount: n
         }
         db.updateBalanceByToken(myWallet, token, balance);
         logger.info(`将卖出数量从 ${sellAmount} 修正为 ${balance}`);
+        sellAmount = balance;
     }
 
     logger.info(`目前持仓 ${position.balance}, 卖出比例 ${sellPercent}, 卖出 ${sellAmount}`);
