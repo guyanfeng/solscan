@@ -52,8 +52,8 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
         outputMint: to,
         amount: parseInt(amount),
         autoSlippage: true,
-        autoSlippageCollisionUsdValue: 1_000,
-        maxAutoSlippageBps: 1000, // 10%
+        autoSlippageCollisionUsdValue: 2_000,
+        maxAutoSlippageBps: 2000, // 10%
         minimizeSlippage: true,
         onlyDirectRoutes: false,
         asLegacyTransaction: false,
@@ -76,7 +76,7 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
             quoteResponse: quote,
             userPublicKey: wallet.publicKey.toBase58(),
             dynamicComputeUnitLimit: true,
-            prioritizationFeeLamports: "auto",
+            prioritizationFeeLamports: 1000000,
         },
     });
 
