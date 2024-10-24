@@ -1,4 +1,4 @@
-import { DexTransaction, OrderResult } from "./definition";
+import { DexTransaction, FollowPolicy, OrderResult } from "./definition";
 import db from "./db";
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment-timezone';
@@ -30,67 +30,23 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
         // await send_tg(`跟单失败: ${e}`);
     }
 
-    const msg = `swap ${dexTx.fromAmount} ${dexTx.from}[${dexTx.fromToken}] for ${dexTx.toAmount} ${dexTx.to}[${dexTx.toToken}] on ${dexTx.dexName}`;
-    if (dexTx.fromToken == config.SOLTOKEN && dexTx.fromAmount >= 9) {
-        //超过 9 SOL 才跟单买入
-        //不可超过最大跟单市值，否则不买入
-        send_tg(`钱包[${dexTx.wallet}]在[${dexTx.time}]有新的交易,${msg},点击查看\nhttps://solscan.io/tx/${dexTx.tx}`);
-
-        if (!flowWallets.includes(dexTx.wallet)) {
-            return;
-        }
-        if (await db.isBlackToken(dexTx.toToken)) {
-            logger.info(`${dexTx.toToken} 是黑名单 token, 不跟单`);
-            return;
-        }
-
-        try {
-            const price = await getPrice(dexTx.toToken);
-            const splMeta = await db.getSplTokenMeta(dexTx.toToken);
-            if (!splMeta) {
-                throw new Error(`未找到 ${dexTx.toToken} 的 token meta`);
-            }
-            const marketValue = Math.floor(splMeta.supply * price);
-            if (marketValue > config.maxFollowMarketValue) {
-                send_tg(`${dexTx.to} 市值 ${marketValue} 超过最大跟单市值 ${config.maxFollowMarketValue}, 不跟单买入`);
-                return;
-            }
-        } catch (e) {
-            send_tg(`查询最大市值失败，不跟单: ${e}`);
-            return;
-        }
-        logger.info(`聪明钱 ${dexTx.wallet} 买入了 ${dexTx.toAmount} ${dexTx.to}[${dexTx.toToken}], 开始跟单买入`);
+    const msg = `[${dexTx.wallet}] swap ${dexTx.fromAmount} [${dexTx.from}][${dexTx.fromToken}] for ${dexTx.toAmount} [${dexTx.to}][${dexTx.toToken}] on [${dexTx.dexName}]`;
+    const policy: FollowPolicy = config.policy.find((p: any) => p.wallet == dexTx.wallet);
+    if (!policy) {
+        return;
+    }
+    if (dexTx.fromToken == config.SOLTOKEN) {
         if (!config.canBuy) {
-            // await send_tg(`聪明钱 ${dexTx.wallet} 买入了 ${dexTx.toAmount} ${dexTx.to}[${dexTx.toToken}], 但当前设置为不买入`);
             logger.info(`当前设置为不买入`);
             return;
         }
-        try {
-            const result = await buy(dexTx.toToken, dexTx.to, dexTx.fromAmount, dexTx.toAmount, dexTx.wallet);
-            await send_tg(`跟单 ${dexTx.wallet} 买入了 ${result.toAmount} 的 ${dexTx.to}[${dexTx.toToken}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
-        } catch (e) {
-            await send_tg(`跟单 ${dexTx.wallet} 买入${dexTx.to}[${dexTx.toToken}]失败: ${e}`);
-        }
+        await buy(dexTx, policy);
     } else if (dexTx.toToken == config.SOLTOKEN) {
-        logger.info(`聪明钱 ${dexTx.wallet} 卖出了 ${dexTx.fromAmount} ${dexTx.from}[${dexTx.fromToken}]`);
         if (!config.canSell) {
-            // await send_tg(`聪明钱 ${dexTx.wallet} 卖出了 ${dexTx.fromAmount} ${dexTx.from}[${dexTx.fromToken}], 但当前设置为不卖出`);
             logger.info(`当前设置为不卖出`);
             return;
         }
-        try {
-            //先看自己有没有持仓
-            const position = await db.getPositionByToken(myWallet, dexTx.fromToken);
-            if (!position) {
-                logger.info(`没有找到 ${dexTx.from}[${dexTx.fromToken}] 的持仓，无法卖出`);
-                return;
-            }
-            send_tg(`钱包[${dexTx.wallet}]在[${dexTx.time}]有新的交易,${msg},点击查看\nhttps://solscan.io/tx/${dexTx.tx}`);
-            const result = await sell(dexTx.fromToken, dexTx.from, dexTx.wallet, dexTx.fromAmount);
-            await send_tg(`跟单 ${dexTx.wallet} 卖出了 ${result.fromAmount} 的 ${dexTx.from}[${dexTx.fromToken}], 价格 ${result.price}, 获得 ${result.toAmount} SOL`);
-        } catch (e) {
-            await send_tg(`跟单 ${dexTx.wallet} 卖出${dexTx.from}[${dexTx.fromToken}]失败: ${e}`);
-        }
+        await sell(dexTx, policy);
     }
 }
 
@@ -98,31 +54,138 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
  * 买入
  * @param token token mint
  * @param symbol token symbol
- * @param smTokenAmount 为聪明钱购买的token数量，此处作参考
+ * @param buyAmount 买入数量，SOL
  * @param flowAddress 跟单的聪明钱地址
  */
-async function buy(token: string, symbol: string, smSolAmount:number, smTokenAmount: number, flowAddress: string): Promise<OrderResult> {
-
-    const solAmount = 0.1;
-    //调用 jupiter 的 api 进行买入
-    // let result: OrderResult = { price: 0, fromAmount: 0, toAmount: 0 };
-    // //如果已经跟另一个聪明钱买入了，就不再跟单
-    // const flowed = await db.getFollowWallet(myWallet, token);
-    // if (flowed && flowed != flowAddress) {
-    //     logger.info(`已经跟单了 ${flowed} 的 ${symbol}[${token}], 不再跟单 ${flowAddress}`);
-    //     throw new Error(`已经跟单了 ${flowed} 的 ${symbol}[${token}], 不再跟单 ${flowAddress}`);
-    // }
-    //目前固定买入 0.1SOL，1周内最多净持仓 0.5SOL
-    const weekAgo = moment().subtract(7, 'days').format('YYYY-MM-DD');
-    const amount = await db.getRangeTokanBalance(myWallet, token, weekAgo, moment().add(1, 'days').format('YYYY-MM-DD'));
-    if (amount >= 0.5) {
-        logger.info(`${myWallet} 1周内净持仓已经达到 ${amount} SOL, 不再跟单`);
-        throw new Error(`${myWallet} 1周内净持仓已经达到 ${amount} SOL, 不再跟单`);
+async function buy(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> {
+    const smartWallet = policy.walletNote || policy.wallet;
+    const msg = `聪明钱${smartWallet}在${dexTx.time}花费${Math.round(dexTx.fromAmount*100)/100}SOL买入${dexTx.toAmount}个[${dexTx.to}][${dexTx.toToken}],https://solscan.io/tx/${dexTx.tx}`;
+    logger.info(msg);
+    send_tg(msg);
+    const token = dexTx.toToken;
+    const symbol = dexTx.to;
+    if (!policy.followBuy) {
+        logger.info(`${smartWallet} 当前设置为不买入`);
+        return;
     }
 
-    const result = await jupiterBuy(token, symbol, solAmount);
-    await db.updateBuyInfo(token, symbol, solAmount, result.toAmount, flowAddress, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'));
-    return result;
+    try {
+        if (await db.isBlackToken(token)) {
+            logger.info(`${token} 是黑名单 token, 不跟单`);
+            return;
+        }
+    } catch (e) {
+        logger.error(`查询黑名单失败: ${e}`);
+    }
+
+    if (policy.minBuyingAmount) {
+        if (dexTx.fromAmount < policy.minBuyingAmount) {
+            logger.info(`买入数量 ${dexTx.fromAmount} 小于最小买入数量 ${policy.minBuyingAmount}, 不跟单`);
+            return;
+        }
+    }
+
+    //限制跟单总金额
+    try{
+        const weekAgo = moment().subtract(7, 'days').format('YYYY-MM-DD');
+        const amount = await db.getRangeTokanBalance(myWallet, token, weekAgo, moment().add(1, 'days').format('YYYY-MM-DD'));
+        if (amount >= 0.5) {
+            logger.info(`${myWallet} 1周内净持仓已经达到 ${amount} SOL, 不再跟单`);
+            send_tg(`${myWallet} 1周内净持仓已经达到 ${amount} SOL, 不再跟单`);
+            return;
+        }
+    }catch(e){
+        logger.error(`查询 1 周内净持仓失败: ${e}`);
+        return;
+    }
+
+    //限制跟单市值
+    if (policy.maxMarketValue) {
+        try {
+            const price = await getPrice(dexTx.toToken);
+            const splMeta = await db.getSplTokenMeta(dexTx.toToken);
+            if (!splMeta) {
+                throw new Error(`未找到 ${dexTx.toToken} 的 token meta`);
+            }
+            const marketValue = Math.floor(splMeta.supply * price);
+            if (marketValue > policy.maxMarketValue) {
+                send_tg(`[${symbol}][${token}] 市值 ${marketValue} 超过最大跟单市值 ${policy.maxMarketValue}, 不跟单买入`);
+                return;
+            }
+        } catch (e) {
+            logger.error(`查询最大市值失败, 继续跟单: ${e}`);
+            // send_tg(`查询最大市值失败, 继续跟单: ${e}`);
+            // return;
+        }
+    }
+
+    //计算跟单金额
+    let followAmount = 0.1;
+    if (policy.followAmount) {
+        if (policy.followAmount > 0) {
+            followAmount = policy.followAmount;
+        }
+    } else {
+        if (policy.followPercent) {
+            // 默认单次跟单金额不超过 0.3 SOL
+            const maxFollowAmount = policy.maxFollowAmount || 0.3;
+            followAmount = Math.min(Math.round(dexTx.fromAmount * policy.followPercent * 100) / 100, maxFollowAmount);
+        }
+    }
+
+    //是否需要延迟跟单
+    if (policy.delaySeconds && policy.delaySeconds > 0) {
+        logger.info(`跟单 ${smartWallet} 延迟 ${policy.delaySeconds} 秒后购买`);
+        setTimeout(() => {
+            delayBuy(dexTx, policy, followAmount);
+        }, policy.delaySeconds * 1000);
+        return;
+    }
+
+    //调用 jupiter 的 api 进行买入
+    try {
+        const result = await jupiterBuy(token, symbol, followAmount);
+        await db.updateBuyInfo(token, symbol, followAmount, result.toAmount, dexTx.wallet, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'));
+        logger.info(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
+        await send_tg(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
+    } catch (e) {
+        logger.error(`跟单 ${smartWallet} 买入${symbol}[${token}]失败: ${e}`);
+        await send_tg(`跟单 ${smartWallet} 买入${symbol}[${token}]失败: ${e}`);
+    }
+}
+
+//延迟购买，如果用户的持仓在延迟时间到达后不足 60%，则取消本次购买
+async function delayBuy(dexTx: DexTransaction, policy: FollowPolicy, followAmount: number) : Promise<void>{
+    const smartWallet = policy.walletNote || policy.wallet;
+    const buyAmount = dexTx.toAmount;
+    const token = dexTx.toToken;
+    const symbol = dexTx.to;
+    try{
+        const pos = await db.getPositionByToken(dexTx.wallet, dexTx.toToken);
+        if (!pos){
+            logger.info(`未找到 ${smartWallet} 在[${symbol}][${token}]的持仓, 取消购买`);
+            return;
+        }
+        if (pos.balance < buyAmount * 0.6){
+            logger.info(`${smartWallet} 在[${symbol}][${token}]的持仓不足购买数量的 60%, 取消购买`);
+            return;
+        }
+    }catch (e){
+        logger.error(`delayBuy 查询持仓失败: ${e}`);
+        return;
+    }
+
+    logger.info(`跟单${smartWallet}延迟购买 ${followAmount} SOL 的${symbol}[${token}]`);
+    //调用 jupiter 的 api 进行买入
+    try {
+        const result = await jupiterBuy(token, symbol, followAmount);
+        await db.updateBuyInfo(token, symbol, followAmount, result.toAmount, dexTx.wallet, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'));
+        logger.info(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
+        await send_tg(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
+    } catch (e) {
+        logger.error(`跟单 ${smartWallet} 买入${symbol}[${token}]失败: ${e}`);
+        await send_tg(`跟单 ${smartWallet} 买入${symbol}[${token}]失败: ${e}`);
+    }
 }
 
 //手动购买，不受市值和持仓限制
@@ -143,10 +206,10 @@ async function jupiterBuy(token: string, symbol: string, solAmount: number): Pro
         //call api
         //sol 的小数为 9 位
         for (let i = 0; i < 3; i++) {
-            let tx:VersionedTransactionResponse;
-            try{
+            let tx: VersionedTransactionResponse;
+            try {
                 tx = await jupSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
-            }catch(e){
+            } catch (e) {
                 logger.error(`jupiter buy failed:${e}, 重试第 ${i + 1} 次`);
                 continue;
             }
@@ -177,33 +240,44 @@ async function jupiterBuy(token: string, symbol: string, solAmount: number): Pro
         }
         throw new Error('jupiter buy failed');
     } else {
-        return { price: 0.01, fromAmount: solAmount, toAmount: 1000, txid: uuidv4() };
+        return { price: 0.001, fromAmount: solAmount, toAmount: solAmount / 0.001, txid: uuidv4() };
     }
 }
 
-async function sell(token: string, symbol: string, smWallet: string, smAmount: number): Promise<OrderResult> {
-    const position = await db.getPositionByToken(myWallet, token);
-    if (!position) {
-        logger.info(`没有找到 ${symbol}[${token}] 的持仓，无法卖出`);
-        throw new Error(`没有找到 ${symbol}[${token}] 的持仓，无法卖出`);
+async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> {
+    const smartWallet = policy.walletNote || policy.wallet;
+    const msg = `聪明钱${smartWallet}在${dexTx.time}卖出${dexTx.fromAmount}个[${dexTx.from}][${dexTx.fromToken}],得到${Math.round(dexTx.toAmount*100)/100}SOL,https://solscan.io/tx/${dexTx.tx}`;
+    logger.info(msg);
+    send_tg(msg);
+    const token = dexTx.fromToken;
+    const symbol = dexTx.from;
+
+    if (!policy.followSell) {
+        logger.info(`${smartWallet} 当前设置为不卖出`);
+        return;
     }
-    //找到聪明钱的持仓
-    //再查询卖出比例
-    //最后一次跟单的钱包
-    // const smAddress = await db.getFollowWallet(myWallet, token);
-    // if (!smAddress) {
-    //     logger.info(`没有找到聪明钱 ${symbol}[${token}] 的持仓`);
-    //     return;
-    // }
+    //当前持仓
+    let position;
+    try {
+        //先看自己有没有持仓
+        position = await db.getPositionByToken(myWallet, token);
+        if (!position) {
+            logger.info(`没有找到 [${symbol}][${token}] 的持仓，无法卖出`);
+            return;
+        }
+    } catch (e) {
+        logger.error(`查询持仓失败: ${e}`);
+        return;
+    }
 
     //任意一个聪明钱卖出都跟单，不局限于买入时的聪明钱
-    const smPosition = await db.getPositionByToken(smWallet, token);
+    const smPosition = await db.getPositionByToken(dexTx.wallet, token);
     //如果聪明钱没有持仓（是在系统监控之前买入的），则全部卖掉
     //因为会先更新聪明钱的持仓，所以此处计算比例的公式不太一样
     //例如，原有 10000， 卖出了 5000， 剩余 5000，那么卖出比例为 5000 / (5000 + 5000) = 0.5
     let sellPercent = 1;
     if (smPosition) {
-        sellPercent = smAmount / (smPosition.balance + smAmount);
+        sellPercent = dexTx.fromAmount / (smPosition.balance + dexTx.fromAmount);
     }
     //取整
     if (sellPercent > 0.95) {
@@ -214,27 +288,39 @@ async function sell(token: string, symbol: string, smWallet: string, smAmount: n
     //计算卖出数量
     let sellAmount = position.balance * sellPercent;
     if (sellPercent == 1) {
-        // 如果数量为 100%，则重新从链上获取最新余额，因为余额在数据库中不一定精确
-        const balance = await getSplTokenBalance(connection, myWallet, token);
-        if (balance == 0){
-            logger.info(`余额为 0, 无法卖出`);
-            throw new Error(`余额为 0, 无法卖出`);
+        try {
+            // 如果数量为 100%，则重新从链上获取最新余额，因为余额在数据库中不一定精确
+            const balance = await getSplTokenBalance(connection, myWallet, token);
+            if (balance == 0) {
+                logger.info(`余额为 0, 无法卖出`);
+                throw new Error(`余额为 0, 无法卖出`);
+            }
+            db.updateBalanceByToken(myWallet, token, balance);
+            logger.info(`将卖出数量从 ${sellAmount} 修正为 ${balance}`);
+            sellAmount = balance;
+        } catch (e) {
+            logger.error(`获取余额失败: ${e}`);
         }
-        db.updateBalanceByToken(myWallet, token, balance);
-        logger.info(`将卖出数量从 ${sellAmount} 修正为 ${balance}`);
-        sellAmount = balance;
     }
 
     logger.info(`目前持仓 ${position.balance}, 卖出比例 ${sellPercent}, 卖出 ${sellAmount}`);
 
-    //查出 token 的小数
-    const tokenInfo = await getSplTokenMetaFromCache(connection, token);
+    try {
+        //查出 token 的小数
+        const tokenInfo = await getSplTokenMetaFromCache(connection, token);
 
-    //卖出时必须为整数
-    const sellResult = await jupiterSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
+        //卖出时必须为整数
+        const result = await jupiterSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
 
-    await db.updateSellInfo(token, symbol, sellAmount, sellResult.toAmount, uuidv4(), myWallet, moment().format('YYYY-MM-DD HH:mm:ss'), smWallet);
-    return sellResult;
+        await db.updateSellInfo(token, symbol, sellAmount, result.toAmount, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'), dexTx.wallet);
+
+        logger.info(`跟单 ${smartWallet} 卖出了 ${result.fromAmount} 的 ${dexTx.from}[${dexTx.fromToken}], 价格 ${result.price}, 获得 ${result.toAmount} SOL`);
+        await send_tg(`跟单 ${smartWallet} 卖出了 ${result.fromAmount} 的 ${dexTx.from}[${dexTx.fromToken}], 价格 ${result.price}, 获得 ${result.toAmount} SOL`);
+
+    } catch (e) {
+        logger.error(`跟单 ${smartWallet} 卖出${dexTx.from}[${dexTx.fromToken}]失败: ${e}`);
+        await send_tg(`跟单 ${smartWallet} 卖出${dexTx.from}[${dexTx.fromToken}]失败: ${e}`);
+    }
 }
 
 ///按比例卖出
@@ -275,10 +361,10 @@ async function jupiterSell(token: string, symbol: string, tokenAmount: number): 
     if (!config.dev) {
         //call api
         for (let i = 0; i < 3; i++) {
-            let tx:VersionedTransactionResponse;
-            try{
+            let tx: VersionedTransactionResponse;
+            try {
                 tx = await jupSwap(token, config.SOLTOKEN, tokenAmount.toString(), i);
-            }catch(e){
+            } catch (e) {
                 logger.error(`jupiter sell failed, 重试第 ${i + 1} 次`);
                 continue;
             }
@@ -313,7 +399,7 @@ async function jupiterSell(token: string, symbol: string, tokenAmount: number): 
         }
         throw new Error('jupiter sell faild');
     } else {
-        return { price: 0.01, fromAmount: tokenAmount, toAmount: 0.02, txid: uuidv4() };
+        return { price: 0.001, fromAmount: tokenAmount, toAmount: tokenAmount * 0.001, txid: uuidv4() };
     }
 }
 

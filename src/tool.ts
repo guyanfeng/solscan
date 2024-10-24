@@ -12,23 +12,6 @@ const logger = new Logger('tool');
 
 const connection: Connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
 
-async function increaseBuy(token:string, followWallet:string){
-    const tokenInfo = await getSplTokenMetaFromCache(connection, token);
-    const buyResult = await buy(token, tokenInfo.symbol, 1, 1, followWallet);
-    console.log(buyResult);
-}
-
-async function increaseSell(token:string, smAmount:number){
-    const tokenInfo = await getSplTokenMetaFromCache(connection, token);
-    const smWallet = await db.getFollowWallet(config.myWallet, token);
-    if (!smWallet){
-        console.log(`No follow wallet for token: ${token}`);
-        return;
-    }
-    const sellResult = await sell(token, tokenInfo.symbol, smWallet, smAmount);
-    console.log(sellResult);
-}
-
 (async () => {
     const args = process.argv.slice(2);
     if (args.length === 0){
@@ -36,23 +19,7 @@ async function increaseSell(token:string, smAmount:number){
         return;
     }
     const command = args[0];
-    if (command === 'buy'){
-        if (args.length < 3){
-            console.log('usage: buy token followWallet');
-            return;
-        }
-        const token = args[1];
-        const followWallet = args[2];
-        await increaseBuy(token, followWallet);
-    } else if (command === 'sell'){
-        if (args.length < 3){
-            console.log('usage: sell token amount');
-            return;
-        }
-        const token = args[1];
-        const amount = parseInt(args[2]);
-        await increaseSell(token, amount);
-    } else if (command === 'test')
+    if (command === 'test')
     {
         const tx = await jupSwap('7bCTaMF64WrhqyDqwri9XMsXsufEKGjUByDLnXGwpump', 'So11111111111111111111111111111111111111112', (2951775.567491 * 1000000).toString(), 2);
         const txid = tx.transaction.signatures[0];

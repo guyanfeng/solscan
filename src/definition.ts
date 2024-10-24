@@ -2,7 +2,7 @@ export interface Config {
     wallets: string[];
 };
 
-export enum TransactionType{
+export enum TransactionType {
     None = 0,
     Transfer = 1,
     Dex = 2
@@ -73,34 +73,49 @@ export interface MonitorData {
 }
 
 // jupiter v6 api 的结果
-interface SwapResult{
+interface SwapResult {
     success: boolean;
     errCode: string;
     tx: string;
 }
 
-interface OrderResult{
+interface OrderResult {
     txid: string;
     fromAmount: number;
     price: number;
     toAmount: number;
 }
 
-interface FollowRecord{
-    updateTime:string,
-    symbol:string,
-    solAmount:number,
-    tokenAmount:number,
-    followWallet:string,
-    tradeType:string
+interface FollowRecord {
+    updateTime: string,
+    symbol: string,
+    solAmount: number,
+    tokenAmount: number,
+    followWallet: string,
+    tradeType: string
 }
 
-interface HoldRecord{
-    token:string
-    symbol:string,
-    balance:number,
-    wallet:string,
-    followWallet:string
+interface HoldRecord {
+    token: string
+    symbol: string,
+    balance: number,
+    wallet: string,
+    followWallet: string
 }
 
-export {OrderResult, FollowRecord, HoldRecord, SwapResult};
+//跟单策略
+interface FollowPolicy {
+    wallet: string,
+    walletNote: string | undefined,
+    followBuy: boolean | undefined,
+    followSell: boolean | undefined,
+    minBuyingAmount: number | undefined,
+    maxMarketValue: number | undefined,
+    followPercent: number | undefined,
+    followAmount: number | undefined,
+    maxFollowAmount: number | undefined,
+    //延迟时间，单位秒，买入后延迟一段时间再跟单，如果在延迟时间内卖出，则不跟单
+    delaySeconds: number | undefined,
+}
+
+export { OrderResult, FollowRecord, HoldRecord, SwapResult, FollowPolicy };

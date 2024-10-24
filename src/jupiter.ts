@@ -60,7 +60,13 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
     };
 
     // get quote
-    const quote = await jupiterQuoteApi.quoteGet(params);
+    let quote;
+    try{
+        quote = await jupiterQuoteApi.quoteGet(params);
+    }catch (e){
+        logger.error(`Failed to get quote: ${e}`);
+        throw new Error('Failed to get quote');
+    }
 
     if (!quote) {
         logger.error('Failed to get quote');
@@ -106,7 +112,7 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
         // Simulation error, we can check the logs for more details
         // If you are getting an invalid account error, make sure that you have the input mint account to actually swap from.
         logger.error("Simulation Error:");
-        logger.error({ err, logs });
+        logger.error({ err});
         throw new Error('Simulation Error');
     }
 

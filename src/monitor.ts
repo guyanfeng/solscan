@@ -2,7 +2,7 @@ import { Connection, PublicKey, clusterApiUrl, Message, MessageV0 } from '@solan
 // import { TOKEN_PROGRAM_ID, AccountLayout } from '@solana/spl-token';
 import { send_tg } from './notify';
 const config = require('../config');
-import { Config, DexInstruction, DexTransaction, MonitorData, TransferTransaction } from './definition';
+import { Config, DexInstruction, DexTransaction, FollowPolicy, MonitorData, TransferTransaction } from './definition';
 import { getTransaction, hasDexInstruction, isTransferInstruction, parseDexTransaction, parseTransferTransaction } from './parse';
 import Logger from './logger';
 import {onDexTransaction} from './followOrder';
@@ -131,8 +131,8 @@ async function monitorWallet(connection: Connection, wallet: string) {
 
 async function main() {
     try {
-        config.wallets.forEach((wallet: string) => {
-            monitorWallet(connection, wallet);
+        config.policy.forEach((p: FollowPolicy) => {
+            monitorWallet(connection, p.wallet);
         });
         setTimeout(processMonitorQueue, 5000);
         setTimeout(processTradeQueue, 5000);
