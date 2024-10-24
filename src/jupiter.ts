@@ -4,14 +4,9 @@ import bs58 from 'bs58';
 import axios from "axios";
 const config = require('../config');
 import Logger from "./logger";
-import { SwapResult } from "./definition";
-import { randomUUID } from "crypto";
 import { createJupiterApiClient, QuoteGetRequest } from "@jup-ag/api";
 import { transactionSenderAndConfirmationWaiter } from "./transactionSender";
 const logger = new Logger('jupiter');
-
-const jupiterRpc = config.jupiterRpc;
-const jitoRpc = config.jitoRpc;
 
 const jupiterQuoteApi = createJupiterApiClient();
 
@@ -52,8 +47,8 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
         outputMint: to,
         amount: parseInt(amount),
         autoSlippage: true,
-        autoSlippageCollisionUsdValue: 2_000,
-        maxAutoSlippageBps: 2000, // 10%
+        autoSlippageCollisionUsdValue: 1_000,
+        maxAutoSlippageBps: config.maxAutoSlippageBps, // 10%
         minimizeSlippage: true,
         onlyDirectRoutes: false,
         asLegacyTransaction: false,
@@ -75,14 +70,14 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
     logger.debug(`quote: ${JSON.stringify(quote)}`);
     //修改 quote 中的滑点
     if (quote.computedAutoSlippage) {
-        quote.slippageBps = Math.min(quote.computedAutoSlippage, 1000);
+        quote.slippageBps = Math.min(quote.computedAutoSlippage, config.maxAutoSlippageBps);
     }
     const swapObj = await jupiterQuoteApi.swapPost({
         swapRequest: {
             quoteResponse: quote,
             userPublicKey: wallet.publicKey.toBase58(),
             dynamicComputeUnitLimit: true,
-            prioritizationFeeLamports: 1000000,
+            prioritizationFeeLamports: config.priorityFee * 1000000000,
         },
     });
 

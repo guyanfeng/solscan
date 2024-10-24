@@ -11,6 +11,7 @@ import { jupSwap, getPrice, getSignature } from "./jupiter";
 import { getSplTokenMetaFromCache, getTransaction, parseDexTransaction } from "./parse";
 import { clusterApiUrl, Connection, PublicKey, VersionedTransactionResponse } from "@solana/web3.js";
 import { getSplTokenBalance, getSplTokenMeta } from "./spltoken";
+import { gmgnSwap } from "./gmgn";
 
 const flowWallets = config.flowWallets;
 const myWallet: string = config.myWallet;
@@ -144,7 +145,7 @@ async function buy(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> {
 
     //调用 jupiter 的 api 进行买入
     try {
-        const result = await jupiterBuy(token, symbol, followAmount);
+        const result = await botBuy(token, symbol, followAmount);
         await db.updateBuyInfo(token, symbol, followAmount, result.toAmount, dexTx.wallet, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'));
         logger.info(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
         await send_tg(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
@@ -178,7 +179,7 @@ async function delayBuy(dexTx: DexTransaction, policy: FollowPolicy, followAmoun
     logger.info(`跟单${smartWallet}延迟购买 ${followAmount} SOL 的${symbol}[${token}]`);
     //调用 jupiter 的 api 进行买入
     try {
-        const result = await jupiterBuy(token, symbol, followAmount);
+        const result = await botBuy(token, symbol, followAmount);
         await db.updateBuyInfo(token, symbol, followAmount, result.toAmount, dexTx.wallet, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'));
         logger.info(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
         await send_tg(`跟单 ${smartWallet} 买入了 ${result.toAmount} 的 ${symbol}[${token}], 价格 ${result.price}, 花费 ${result.fromAmount} SOL`);
@@ -192,7 +193,7 @@ async function delayBuy(dexTx: DexTransaction, policy: FollowPolicy, followAmoun
 async function manualBuy(token: string): Promise<OrderResult> {
     const solAmount = 0.1;
     const splMeta = await getSplTokenMetaFromCache(connection, token);
-    const result = await jupiterBuy(token, splMeta.symbol, solAmount);
+    const result = await botBuy(token, splMeta.symbol, solAmount);
     const followed = await db.getFollowWallet(myWallet, token);
     const followWallet = followed ? followed : '';
     await db.updateBuyInfo(token, splMeta.symbol, solAmount, result.toAmount, followWallet, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'));
@@ -200,7 +201,7 @@ async function manualBuy(token: string): Promise<OrderResult> {
     return result;
 }
 
-async function jupiterBuy(token: string, symbol: string, solAmount: number): Promise<OrderResult> {
+async function botBuy(token: string, symbol: string, solAmount: number): Promise<OrderResult> {
     //调用 jupiter 的 api 进行买入
     if (!config.dev) {
         //call api
@@ -208,9 +209,18 @@ async function jupiterBuy(token: string, symbol: string, solAmount: number): Pro
         for (let i = 0; i < 3; i++) {
             let tx: VersionedTransactionResponse;
             try {
-                tx = await jupSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
+                switch (config.tradingBot){
+                    case 'jupiter':
+                        tx = await jupSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
+                        break;
+                    case 'gmgn':
+                        tx = await gmgnSwap(config.SOLTOKEN, token, (solAmount * 1000000000).toString(), i);
+                        break;
+                    default:
+                        throw new Error('未知的交易机器人');
+                }
             } catch (e) {
-                logger.error(`jupiter buy failed:${e}, 重试第 ${i + 1} 次`);
+                logger.error(`bot buy failed:${e}, 重试第 ${i + 1} 次`);
                 continue;
             }
             const txid = tx.transaction.signatures[0];
@@ -248,7 +258,6 @@ async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> 
     const smartWallet = policy.walletNote || policy.wallet;
     const msg = `聪明钱${smartWallet}在${dexTx.time}卖出${dexTx.fromAmount}个[${dexTx.from}][${dexTx.fromToken}],得到${Math.round(dexTx.toAmount*100)/100}SOL,https://solscan.io/tx/${dexTx.tx}`;
     logger.info(msg);
-    send_tg(msg);
     const token = dexTx.fromToken;
     const symbol = dexTx.from;
 
@@ -269,6 +278,8 @@ async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> 
         logger.error(`查询持仓失败: ${e}`);
         return;
     }
+    //只有自己有持仓的时候才显示卖出消息
+    send_tg(msg);
 
     //任意一个聪明钱卖出都跟单，不局限于买入时的聪明钱
     const smPosition = await db.getPositionByToken(dexTx.wallet, token);
@@ -310,7 +321,7 @@ async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> 
         const tokenInfo = await getSplTokenMetaFromCache(connection, token);
 
         //卖出时必须为整数
-        const result = await jupiterSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
+        const result = await botSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
 
         await db.updateSellInfo(token, symbol, sellAmount, result.toAmount, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'), dexTx.wallet);
 
@@ -349,21 +360,30 @@ async function sellByPercent(tokenId: number, sellPercent: number): Promise<Orde
     const tokenInfo = await getSplTokenMetaFromCache(connection, token);
 
     //卖出时必须为整数
-    const sellResult = await jupiterSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
+    const sellResult = await botSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
 
     await db.updateSellInfo(token, symbol, sellAmount, sellResult.toAmount, uuidv4(), myWallet, moment().format('YYYY-MM-DD HH:mm:ss'), smWallet);
     logger.info(`卖出 ${sellAmount} ${symbol}[${token}] for ${sellResult.toAmount} SOL`);
     return sellResult;
 }
 
-async function jupiterSell(token: string, symbol: string, tokenAmount: number): Promise<OrderResult> {
+async function botSell(token: string, symbol: string, tokenAmount: number): Promise<OrderResult> {
     //调用 jupiter 的 api 进行买入
     if (!config.dev) {
         //call api
         for (let i = 0; i < 3; i++) {
             let tx: VersionedTransactionResponse;
             try {
-                tx = await jupSwap(token, config.SOLTOKEN, tokenAmount.toString(), i);
+                switch (config.tradingBot){
+                    case 'jupiter':
+                        tx = await jupSwap(token, config.SOLTOKEN, tokenAmount.toString(), i);
+                        break;
+                    case 'gmgn':
+                        tx = await gmgnSwap(token, config.SOLTOKEN, tokenAmount.toString(), i);
+                        break;
+                    default:
+                        throw new Error('未知的交易机器人');
+                }
             } catch (e) {
                 logger.error(`jupiter sell failed, 重试第 ${i + 1} 次`);
                 continue;
@@ -403,4 +423,4 @@ async function jupiterSell(token: string, symbol: string, tokenAmount: number): 
     }
 }
 
-export { onDexTransaction, buy, sell, jupiterSell, jupiterBuy, sellByPercent, manualBuy };
+export { onDexTransaction, buy, sell, botSell as jupiterSell, botBuy as jupiterBuy, sellByPercent, manualBuy };

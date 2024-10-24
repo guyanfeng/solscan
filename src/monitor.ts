@@ -33,10 +33,10 @@ async function processTradeQueue(){
         await onDexTransaction(tx);
     } catch (err: any) {
         logger.error(err);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
     }
     finally{
-        setTimeout(processTradeQueue, 5000);
+        setTimeout(processTradeQueue, 1000);
     }
 }
 
@@ -55,9 +55,9 @@ async function processTransferQueue() {
         }
     } catch (err: any) {
         logger.error(err);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
     } finally {
-        setTimeout(processTransferQueue, 5000);
+        setTimeout(processTransferQueue, 1000);
     }
 }
 
@@ -109,7 +109,7 @@ async function processMonitorQueue() {
         errorCount++;
     }
     finally {
-        setTimeout(processMonitorQueue, 5000);
+        setTimeout(processMonitorQueue, 1000);
     }
 }
 
@@ -134,9 +134,9 @@ async function main() {
         config.policy.forEach((p: FollowPolicy) => {
             monitorWallet(connection, p.wallet);
         });
-        setTimeout(processMonitorQueue, 5000);
-        setTimeout(processTradeQueue, 5000);
-        setTimeout(processTransferQueue, 5000);
+        setTimeout(processMonitorQueue, 1000);
+        setTimeout(processTradeQueue, 1000);
+        setTimeout(processTransferQueue, 1000);
 
         //测试队列程序
         // setInterval(() => {
