@@ -19,7 +19,7 @@ async function getPrice(token: string): Promise<number> {
 }
 
 //和 jupiter 的不一样，gmgn 的滑点设置是百分位，假设滑点为 10%， jupiter 应该设置 1000，而 gmgn 应该设置 10
-const slippage = config.maxAutoSlippageBps / 100;
+const slippage = config.maxAutoSlippageBps;
 const API_HOST = 'https://gmgn.ai';
 
 async function gmgnSwap(swap: string, to: string, amount: string, retry: number = 0): Promise<VersionedTransactionResponse> {
@@ -55,7 +55,7 @@ async function gmgnSwap(swap: string, to: string, amount: string, retry: number 
         const statusUrl = `${API_HOST}/defi/router/v1/sol/tx/get_transaction_status?hash=${hash}&last_valid_height=${lastValidBlockHeight}`;
         status = (await axios.get(statusUrl)).data;
         logger.debug(`status: ${JSON.stringify(status.data)}`);
-        if (status && (status.data.success === true || status.data.expired === true)){
+        if (status && (status.data.success === true || status.data.expired === true || status.data.failed === true)) {
             break;
         }
         await wait(1000);
@@ -64,7 +64,7 @@ async function gmgnSwap(swap: string, to: string, amount: string, retry: number 
         logger.error('Transaction not confirmed');
         throw new Error('Transaction not confirmed');
     }
-    const connection = new Connection('https://api.mainnet-beta.solana.com', 'confirmed');
+    const connection = new Connection(config.monitorRpc, 'confirmed');
 
     const tx = await getTransaction(connection, res.data.hash);
     if (!tx) {

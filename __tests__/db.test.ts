@@ -4,7 +4,7 @@ import moment from "moment";
 import { v4 as uuidv4 } from 'uuid';
 const configData = require('../config');
 
-const myWallet = configData.myWallet;
+const myWallet:string = configData.myWallet;
 const TEST_FOLLOW_WALLET = 'TEST_FOLLOW_ADDRESS';
 
 describe('db', () => {
@@ -120,6 +120,12 @@ describe('db', () => {
         await db.updateSellInfo(token, 'token', 100000, 0.02, uuidv4(), myWallet, moment().format('YYYY-MM-DD HH:mm:ss'), TEST_FOLLOW_WALLET);
         position = await db.getPositionByToken(myWallet, token);
         balance = position ? position.balance : 0;
+        expect(balance).toBe(0);
+    });
+
+    it('getAllTokenBalance', async () => {
+        const token = uuidv4();
+        const balance = await db.getAllTokenBalance(token, myWallet);
         expect(balance).toBe(0);
     });
 

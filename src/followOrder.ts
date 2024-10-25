@@ -32,6 +32,7 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
     }
 
     const msg = `[${dexTx.wallet}] swap ${dexTx.fromAmount} [${dexTx.from}][${dexTx.fromToken}] for ${dexTx.toAmount} [${dexTx.to}][${dexTx.toToken}] on [${dexTx.dexName}]`;
+    logger.info(msg);
     const policy: FollowPolicy = config.policy.find((p: any) => p.wallet == dexTx.wallet);
     if (!policy) {
         return;
@@ -60,7 +61,7 @@ async function onDexTransaction(dexTx: DexTransaction): Promise<void> {
  */
 async function buy(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> {
     const smartWallet = policy.walletNote || policy.wallet;
-    const msg = `聪明钱${smartWallet}在${dexTx.time}花费${Math.round(dexTx.fromAmount*100)/100}SOL买入${dexTx.toAmount}个[${dexTx.to}][${dexTx.toToken}],https://solscan.io/tx/${dexTx.tx}`;
+    const msg = `聪明钱[${smartWallet}]在${dexTx.time}花费${Math.round(dexTx.fromAmount*100)/100}SOL买入${dexTx.toAmount}个[${dexTx.to}][${dexTx.toToken}],https://solscan.io/tx/${dexTx.tx}`;
     logger.info(msg);
     send_tg(msg);
     const token = dexTx.toToken;
@@ -90,7 +91,7 @@ async function buy(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> {
     try{
         const weekAgo = moment().subtract(7, 'days').format('YYYY-MM-DD');
         const amount = await db.getRangeTokanBalance(myWallet, token, weekAgo, moment().add(1, 'days').format('YYYY-MM-DD'));
-        if (amount >= 0.5) {
+        if (amount >= 0.3) {
             logger.info(`${myWallet} 1周内净持仓已经达到 ${amount} SOL, 不再跟单`);
             send_tg(`${myWallet} 1周内净持仓已经达到 ${amount} SOL, 不再跟单`);
             return;
@@ -245,10 +246,10 @@ async function botBuy(token: string, symbol: string, solAmount: number): Promise
             if (!dexTx) {
                 throw new Error(`Dex transaction not found: ${txid}`);
             }
-            logger.info(`jupiter buy ${solAmount} SOL for ${dexTx.toAmount} ${symbol}[${token}]`);
+            logger.info(`bot buy ${solAmount} SOL for ${dexTx.toAmount} ${symbol}[${token}]`);
             return { price: dexTx.fromAmount / dexTx.toAmount, fromAmount: dexTx.fromAmount, toAmount: dexTx.toAmount, txid: txid };
         }
-        throw new Error('jupiter buy failed');
+        throw new Error('bot buy failed');
     } else {
         return { price: 0.001, fromAmount: solAmount, toAmount: solAmount / 0.001, txid: uuidv4() };
     }
@@ -256,7 +257,7 @@ async function botBuy(token: string, symbol: string, solAmount: number): Promise
 
 async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> {
     const smartWallet = policy.walletNote || policy.wallet;
-    const msg = `聪明钱${smartWallet}在${dexTx.time}卖出${dexTx.fromAmount}个[${dexTx.from}][${dexTx.fromToken}],得到${Math.round(dexTx.toAmount*100)/100}SOL,https://solscan.io/tx/${dexTx.tx}`;
+    const msg = `聪明钱[${smartWallet}]在${dexTx.time}卖出${dexTx.fromAmount}个[${dexTx.from}][${dexTx.fromToken}],得到${Math.round(dexTx.toAmount*100)/100}SOL,https://solscan.io/tx/${dexTx.tx}`;
     logger.info(msg);
     const token = dexTx.fromToken;
     const symbol = dexTx.from;
@@ -282,13 +283,12 @@ async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> 
     send_tg(msg);
 
     //任意一个聪明钱卖出都跟单，不局限于买入时的聪明钱
-    const smPosition = await db.getPositionByToken(dexTx.wallet, token);
-    //如果聪明钱没有持仓（是在系统监控之前买入的），则全部卖掉
+    const allSmBalance = await db.getAllTokenBalance(token, myWallet);
     //因为会先更新聪明钱的持仓，所以此处计算比例的公式不太一样
     //例如，原有 10000， 卖出了 5000， 剩余 5000，那么卖出比例为 5000 / (5000 + 5000) = 0.5
     let sellPercent = 1;
-    if (smPosition) {
-        sellPercent = dexTx.fromAmount / (smPosition.balance + dexTx.fromAmount);
+    if (allSmBalance > 0) {
+        sellPercent = dexTx.fromAmount / (allSmBalance + dexTx.fromAmount);
     }
     //取整
     if (sellPercent > 0.95) {
@@ -385,7 +385,7 @@ async function botSell(token: string, symbol: string, tokenAmount: number): Prom
                         throw new Error('未知的交易机器人');
                 }
             } catch (e) {
-                logger.error(`jupiter sell failed, 重试第 ${i + 1} 次`);
+                logger.error(`bot sell failed, 重试第 ${i + 1} 次`);
                 continue;
             }
             const txid = tx.transaction.signatures[0];
@@ -414,10 +414,10 @@ async function botSell(token: string, symbol: string, tokenAmount: number): Prom
             if (!dexTx) {
                 throw new Error(`Dex transaction not found: ${txid}`);
             }
-            logger.info(`jupiter sell ${tokenAmount} ${symbol}[${token}] for ${dexTx.toAmount} SOL`);
+            logger.info(`bot sell ${tokenAmount} ${symbol}[${token}] for ${dexTx.toAmount} SOL`);
             return { price: dexTx.toAmount / dexTx.fromAmount, fromAmount: dexTx.fromAmount, toAmount: dexTx.toAmount, txid: txid };
         }
-        throw new Error('jupiter sell faild');
+        throw new Error('bot sell faild');
     } else {
         return { price: 0.001, fromAmount: tokenAmount, toAmount: tokenAmount * 0.001, txid: uuidv4() };
     }

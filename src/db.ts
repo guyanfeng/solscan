@@ -298,6 +298,17 @@ order by updateTime desc limit 24`, [config.myWallet, config.myWallet]);
         return pos || null;
     }
 
+    /**
+     * 查询除指定钱包外的所有持仓
+     * @param excludeWallet 
+     * @param token 
+     * @returns 
+     */
+    public async getAllTokenBalance(token:string,excludeWallet:string): Promise<number> {
+        const balance = await this.db.raw('select sum(balance) as balance from position where token=? and wallet!=?', [token, excludeWallet]);
+        return balance[0].balance || 0;
+    }
+
     public async updateBalance(id:number, balance:number): Promise<void> {
         await this.db('position').where('id', id).update({balance:balance});
     }

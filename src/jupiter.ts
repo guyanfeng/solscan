@@ -46,10 +46,11 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
         inputMint: swap,
         outputMint: to,
         amount: parseInt(amount),
-        autoSlippage: true,
-        autoSlippageCollisionUsdValue: 1_000,
-        maxAutoSlippageBps: config.maxAutoSlippageBps, // 10%
-        minimizeSlippage: true,
+        slippageBps: config.maxAutoSlippageBps*100,
+        autoSlippage: false,
+        // autoSlippageCollisionUsdValue: 1_000,
+        // maxAutoSlippageBps: config.maxAutoSlippageBps, // 10%
+        // minimizeSlippage: true,
         onlyDirectRoutes: false,
         asLegacyTransaction: false,
     };
@@ -69,9 +70,9 @@ async function jupSwap(swap: string, to: string, amount: string, retry: number =
     }
     logger.debug(`quote: ${JSON.stringify(quote)}`);
     //修改 quote 中的滑点
-    if (quote.computedAutoSlippage) {
-        quote.slippageBps = Math.min(quote.computedAutoSlippage, config.maxAutoSlippageBps);
-    }
+    // if (quote.computedAutoSlippage) {
+    //     quote.slippageBps = Math.min(quote.computedAutoSlippage, config.maxAutoSlippageBps);
+    // }
     const swapObj = await jupiterQuoteApi.swapPost({
         swapRequest: {
             quoteResponse: quote,

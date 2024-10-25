@@ -7,14 +7,12 @@ import { getTransaction, hasDexInstruction, isTransferInstruction, parseDexTrans
 import Logger from './logger';
 import {onDexTransaction} from './followOrder';
 import db from "./db";
-
+import * as fs from 'fs';
 
 const logger = new Logger();
 
 // 配置监控的 Solana 网络
-const SOLANA_NETWORK = clusterApiUrl('mainnet-beta');
-// const SOLANA_NETWORK = clusterApiUrl('devnet');
-const connection = new Connection(SOLANA_NETWORK, 'confirmed');
+const connection = new Connection(config.monitorRpc, 'confirmed');
 
 //储存消息队列
 const txQueue: MonitorData[] = [];
@@ -62,6 +60,13 @@ async function processTransferQueue() {
 }
 
 async function processMonitorQueue() {
+
+    //判断是否需要紧急关闭程序
+    if (fs.existsSync('stop.txt')) {
+        send_tg('程序被紧急关闭');
+        process.exit(0);
+    }
+
     let tx:MonitorData|undefined;
     try {
         //每次只处理一笔记录, 如果出错，每次等待时间加倍, 4/8/16/32/64/128/256/512/1024
@@ -130,6 +135,11 @@ async function monitorWallet(connection: Connection, wallet: string) {
 }
 
 async function main() {
+    if (fs.existsSync('stop.txt')) {
+        logger.info('程序被紧急关闭,停止监控');
+        await send_tg('程序被紧急关闭,停止监控');
+        process.exit(0);
+    }
     try {
         config.policy.forEach((p: FollowPolicy) => {
             monitorWallet(connection, p.wallet);

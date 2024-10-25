@@ -5,6 +5,7 @@ import { jupiterBuy, manualBuy, sell, sellByPercent } from './followOrder';
 import Logger from './logger';
 const logger = new Logger('web');
 const config = require('../config.js');
+import * as fs from 'fs';
 
 const app = express();
 const host = config.host;
@@ -137,6 +138,17 @@ app.post('/api/buy', async (req, res) => {
         return res.json(result);
     }catch(e:any){
         logger.error(`buy error: ${e.message}`);
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/stop', async (req, res) => {
+    try{
+        fs.writeFileSync('stop.txt', 'stop');
+        logger.info('stop');
+        return res.json({ message: '停止成功' });
+    }catch(e:any){
+        logger.error(`stop error: ${e.message}`);
         return res.status(500).json({ error: e.message });
     }
 });
