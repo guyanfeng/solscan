@@ -55,7 +55,7 @@ async function gmgnSwap(swap: string, to: string, amount: string, retry: number 
         const statusUrl = `${API_HOST}/defi/router/v1/sol/tx/get_transaction_status?hash=${hash}&last_valid_height=${lastValidBlockHeight}`;
         status = (await axios.get(statusUrl)).data;
         logger.debug(`status: ${JSON.stringify(status.data)}`);
-        if (status && (status.data.success === true || status.data.expired === true || status.data.failed === true)) {
+        if (status && (status.data.success === true || status.data.expired === true || status.data.failed === true || status.data.err !== null)) {
             break;
         }
         await wait(1000);
