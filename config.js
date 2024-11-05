@@ -14,7 +14,7 @@ const configData =
     canSell: true,
     SOLTOKEN: "So11111111111111111111111111111111111111112",
     monitorRpc: "https://api.mainnet-beta.solana.com",
-    tradeRpc: "https://solemn-quiet-sky.solana-mainnet.quiknode.pro/aae8fcbd78a8f90881ed7d195f9eca4273abfd7a",
+    tradeRpc: "https://api.mainnet-beta.solana.com",
     policy: [
         {
             //钱包地址
