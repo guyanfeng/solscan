@@ -1,5 +1,5 @@
 import knex from 'knex';
-import { DexTransaction, FollowRecord, HoldRecord, SplTokenMeta as SplToken } from './definition';
+import { DexTransaction, FollowRecord, HoldRecord, LimitOrder, SplTokenMeta as SplToken } from './definition';
 const config = require('../config');
 import moment from 'moment';
 
@@ -319,6 +319,28 @@ order by updateTime desc limit 24`, [config.myWallet, config.myWallet]);
 
     public async deletePosition(id:number):Promise<void>{
         await this.db('position').where('id', id).delete();
+    }
+
+    public async addLimitOrder(token:string, symbol:string, limitPrice:number, sellPercent:number): Promise<void> {
+        await this.db('limitOrder').insert({token, symbol, limitPrice, sellPercent, actived:true});
+    }
+
+    public async getActivedLimitOrders(): Promise<LimitOrder[]> {
+        const orders = await this.db('limitOrder').where('actived', true);
+        return orders;
+    }
+
+    public async getLimitOrderByToken(token:string): Promise<LimitOrder[] | undefined> {
+        const order = await this.db('limitOrder').where('token', token);
+        return order;
+    }
+
+    public async deactivateLimitOrder(id:number): Promise<void> {
+        await this.db('limitOrder').where('id', id).update({actived:false, updateTime:moment().format('YYYY-MM-DD HH:mm:ss')});
+    }
+
+    public async deleteLimitOrder(id:number): Promise<void> {
+        await this.db('limitOrder').where('id', id).delete();
     }
 
     public async close() {

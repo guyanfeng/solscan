@@ -21,6 +21,22 @@
             </p>
         </div>
         <div class="mt-8 p-4 bg-white dark:bg-gray-600 dark:text-gray-400 rounded-lg">
+            <h3 class="text-lg font-semibold mb-4">限价单</h3>
+            <% if (!limitOrders || limitOrders.length === 0) { %>
+            <p>无</p>
+            <% } else { %>
+            <% limitOrders.forEach(function(order) { %>
+                <div class="mb-2">
+                <p class="flex items-center gap-4">价格: <%= order.limitPrice %>  卖出: <%= order.sellPercent %> % <button type="button"
+                    class="w-36 bg-red-500 text-white dark:text-gray-300 rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                    onclick="deleteLimitOrder('<%=order.id%>')">
+                    删除
+                </button></p>
+                </div>
+            <% }); %>
+            <% } %>
+        </div>
+        <div class="mt-8 p-4 bg-white dark:bg-gray-600 dark:text-gray-400 rounded-lg">
             <h3 class="text-lg font-semibold mb-4">按百分比卖出</h3>
             <div class="flex justify-between space-x-2">
                 <button type="button"
@@ -132,6 +148,10 @@
 
         async function deletePosition(id) {
             await confirmAndExecute('删除持仓', `/api/delete/${id}`, null);
+        }
+
+        async function deleteLimitOrder(id) {
+            await confirmAndExecute('删除限价单', `/api/deleteLimitOrder/${id}`, null);
         }
 
         async function updateBalance(id, newBalance) {

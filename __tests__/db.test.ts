@@ -160,6 +160,28 @@ describe('db', () => {
         const amount = await db.getDailySell(myWallet, '2024-08-22');
         expect(amount).toBe(0.080687634);
     });
+
+    it('addLimitOrder', async () => {
+        await db.addLimitOrder('eth111', 'eth', 0.1, 60);
+        const orders = await db.getActivedLimitOrders();
+        expect(orders).not.toBeUndefined();
+        const order = orders.find((order) => order.token === 'eth111');
+        expect(order).not.toBeUndefined();
+        expect(order?.limitPrice).toBe(0.1);
+        expect(order?.sellPercent).toBe(60);
+    });
+
+    it('getActivedLimitOrders', async () => {
+        const orders = await db.getActivedLimitOrders();
+        expect(orders).not.toBeUndefined();
+    });
+
+    it('deactivateLimitOrder', async () => {
+        const orders = await db.getActivedLimitOrders();
+        if (orders.length > 0) {
+            await db.deactivateLimitOrder(orders[0].id);
+        }
+    });
 });
 
 afterAll(async () => {

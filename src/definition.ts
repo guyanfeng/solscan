@@ -96,6 +96,7 @@ interface FollowRecord {
 }
 
 interface HoldRecord {
+    id: number,
     token: string
     symbol: string,
     balance: number,
@@ -118,4 +119,14 @@ interface FollowPolicy {
     delaySeconds: number | undefined,
 }
 
-export { OrderResult, FollowRecord, HoldRecord, SwapResult, FollowPolicy };
+//限价单
+interface LimitOrder{
+    id: number,
+    token: string,
+    symbol: string,
+    limitPrice: number,
+    sellPercent: number,
+    actived: boolean,
+}
+
+export { OrderResult, FollowRecord, HoldRecord, SwapResult, FollowPolicy, LimitOrder };

@@ -8,6 +8,7 @@ import Logger from './logger';
 import {onDexTransaction} from './followOrder';
 import db from "./db";
 import * as fs from 'fs';
+import { checkAndSellLimitOrders } from './limitOrder';
 
 const logger = new Logger();
 
@@ -118,6 +119,18 @@ async function processMonitorQueue() {
     }
 }
 
+async function processLimitOrders() {
+    try {
+        await checkAndSellLimitOrders();
+    } catch (err: any) {
+        logger.error(err);
+        await send_tg(`处理限价订单出错`);
+    }
+    finally {
+        setTimeout(processLimitOrders, 60*1000);
+    }
+}
+
 async function monitorWallet(connection: Connection, wallet: string) {
     try {
         const walletPublicKey = new PublicKey(wallet);
@@ -147,6 +160,7 @@ async function main() {
         setTimeout(processMonitorQueue, 1000);
         setTimeout(processTradeQueue, 1000);
         setTimeout(processTransferQueue, 1000);
+        setTimeout(processLimitOrders, 60*1000);
 
         //测试队列程序
         // setInterval(() => {

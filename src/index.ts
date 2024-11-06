@@ -72,10 +72,12 @@ app.get('/trade/:id(\\d+)', async (req, res) => {
     const id = parseInt(req.params.id);
     const data:any = {};
     data.id = id;
-    data.position = await db.getPositionById(id);
-    if (!data.position){
+    const position = await db.getPositionById(id);
+    if (!position){
         return res.status(404).send('Position not found');
     }
+    data.position = position;
+    data.limitOrders = await db.getLimitOrderByToken(position.token);
     res.render('trade', data);
 });
 
@@ -138,6 +140,33 @@ app.post('/api/buy', async (req, res) => {
         return res.json(result);
     }catch(e:any){
         logger.error(`buy error: ${e.message}`);
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/addLimitOrder', async (req, res) => {
+    const { token, symbol, limitPrice, sellPercent } = req.body;
+    if (!token || !limitPrice || !sellPercent) {
+        return res.status(400).json({ error: '必须提供代币ID、限价和卖出比例' });
+    }
+    try{
+        await db.addLimitOrder(token, symbol, parseFloat(limitPrice), parseFloat(sellPercent));
+        logger.info(`add limit order: ${token}, ${limitPrice}, ${sellPercent}`);
+        return res.json({ message: '添加成功' });
+    }catch(e:any){
+        logger.error(`add limit order error: ${e.message}`);
+        return res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/deleteLimitOrder/:id(\\d+)', async (req, res) => {
+    const id = parseInt(req.params.id);
+    try{
+        await db.deleteLimitOrder(id);
+        logger.info(`delete limit order: ${id}`);
+        return res.json({ message: '删除成功' });
+    }catch(e:any){
+        logger.error(`delete limit order error: ${e.message}`);
         return res.status(500).json({ error: e.message });
     }
 });

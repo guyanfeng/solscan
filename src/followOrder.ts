@@ -246,6 +246,13 @@ async function botBuy(token: string, symbol: string, solAmount: number): Promise
             if (!dexTx) {
                 throw new Error(`Dex transaction not found: ${txid}`);
             }
+
+            //自动开启限价单，如果涨了 10 倍，直接卖出 60%
+            const limitOrder = await db.getLimitOrderByToken(token);
+            if (!limitOrder) {
+                db.addLimitOrder(token, symbol, dexTx.fromAmount / dexTx.toAmount * 10, 60);
+            }
+
             logger.info(`bot buy ${solAmount} SOL for ${dexTx.toAmount} ${symbol}[${token}]`);
             return { price: dexTx.fromAmount / dexTx.toAmount, fromAmount: dexTx.fromAmount, toAmount: dexTx.toAmount, txid: txid };
         }
