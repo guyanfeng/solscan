@@ -1,4 +1,4 @@
-import { DexTransaction, FollowPolicy, OrderResult } from "./definition";
+import { DexTransaction, FollowPolicy, HoldRecord, OrderResult } from "./definition";
 import db from "./db";
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment-timezone';
@@ -249,7 +249,7 @@ async function botBuy(token: string, symbol: string, solAmount: number): Promise
 
             //自动开启限价单，如果涨了 10 倍，直接卖出 60%
             const limitOrder = await db.getLimitOrderByToken(token);
-            if (!limitOrder) {
+            if (limitOrder.length === 0) {
                 db.addLimitOrder(token, symbol, dexTx.fromAmount / dexTx.toAmount * 10, 60);
             }
 
@@ -274,7 +274,7 @@ async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> 
         return;
     }
     //当前持仓
-    let position;
+    let position:HoldRecord|null = null;
     try {
         //先看自己有没有持仓
         position = await db.getPositionByToken(myWallet, token);
@@ -303,38 +303,10 @@ async function sell(dexTx: DexTransaction, policy: FollowPolicy): Promise<void> 
         sellPercent = 1;
     }
 
-    //计算卖出数量
-    let sellAmount = position.balance * sellPercent;
-    if (sellPercent == 1) {
-        try {
-            // 如果数量为 100%，则重新从链上获取最新余额，因为余额在数据库中不一定精确
-            const balance = await getSplTokenBalance(connection, myWallet, token);
-            if (balance == 0) {
-                logger.info(`余额为 0, 无法卖出`);
-                throw new Error(`余额为 0, 无法卖出`);
-            }
-            db.updateBalanceByToken(myWallet, token, balance);
-            logger.info(`将卖出数量从 ${sellAmount} 修正为 ${balance}`);
-            sellAmount = balance;
-        } catch (e) {
-            logger.error(`获取余额失败: ${e}`);
-        }
-    }
-
-    logger.info(`目前持仓 ${position.balance}, 卖出比例 ${sellPercent}, 卖出 ${sellAmount}`);
-
-    try {
-        //查出 token 的小数
-        const tokenInfo = await getSplTokenMetaFromCache(connection, token);
-
-        //卖出时必须为整数
-        const result = await botSell(token, symbol, Math.floor(sellAmount * 10 ** tokenInfo.decimal));
-
-        await db.updateSellInfo(token, symbol, sellAmount, result.toAmount, result.txid, myWallet, moment().format('YYYY-MM-DD HH:mm:ss'), dexTx.wallet);
-
+    try{
+        const result = await sellByPercent(position.id, sellPercent);
         logger.info(`跟单 ${smartWallet} 卖出了 ${result.fromAmount} 的 ${dexTx.from}[${dexTx.fromToken}], 价格 ${result.price}, 获得 ${result.toAmount} SOL`);
         await send_tg(`跟单 ${smartWallet} 卖出了 ${result.fromAmount} 的 ${dexTx.from}[${dexTx.fromToken}], 价格 ${result.price}, 获得 ${result.toAmount} SOL`);
-
     } catch (e) {
         logger.error(`跟单 ${smartWallet} 卖出${dexTx.from}[${dexTx.fromToken}]失败: ${e}`);
         await send_tg(`跟单 ${smartWallet} 卖出${dexTx.from}[${dexTx.fromToken}]失败: ${e}`);
@@ -359,7 +331,23 @@ async function sellByPercent(tokenId: number, sellPercent: number): Promise<Orde
     const smWallet = position.followWallet;
 
     //计算卖出数量
-    const sellAmount = balance * sellPercent;
+    let sellAmount = balance * sellPercent;
+
+    // 如果数量为 100%，则重新从链上获取最新余额，因为余额在数据库中不一定精确
+    if (sellPercent == 1) {
+        try {
+            const balance = await getSplTokenBalance(connection, myWallet, token);
+            if (balance == 0) {
+                logger.info(`余额为 0, 无法卖出`);
+                throw new Error(`余额为 0, 无法卖出`);
+            }
+            db.updateBalanceByToken(myWallet, token, balance);
+            logger.info(`将卖出数量从 ${sellAmount} 修正为 ${balance}`);
+            sellAmount = balance;
+        } catch (e) {
+            logger.error(`获取余额失败: ${e}`);
+        }
+    }
 
     logger.info(`目前持仓 ${balance}, 卖出比例 ${sellPercent}, 卖出 ${sellAmount}`);
 

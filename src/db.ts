@@ -330,7 +330,7 @@ order by updateTime desc limit 24`, [config.myWallet, config.myWallet]);
         return orders;
     }
 
-    public async getLimitOrderByToken(token:string): Promise<LimitOrder[] | undefined> {
+    public async getLimitOrderByToken(token:string): Promise<LimitOrder[]> {
         const order = await this.db('limitOrder').where('token', token);
         return order;
     }

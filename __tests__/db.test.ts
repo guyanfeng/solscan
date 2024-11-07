@@ -182,6 +182,14 @@ describe('db', () => {
             await db.deactivateLimitOrder(orders[0].id);
         }
     });
+
+    it('test', async () => {
+        const token = 'eth1111111111111111';
+        const limitOrder = await db.getLimitOrderByToken(token);
+            if (!limitOrder) {
+                db.addLimitOrder(token, 'test', 0.00001 * 10, 60);
+            }
+    });
 });
 
 afterAll(async () => {
